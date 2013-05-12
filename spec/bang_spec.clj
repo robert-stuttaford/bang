@@ -12,24 +12,19 @@
 
 (describe "Moving things"
           (it "Moves 10 units across the x axis"
-              (should= {:position [10.0 0.0] :speed 10}
-                       (b/move-thing {:position [0 0] :speed 10} 0)))
+              (should= {:position [10.0 0.0] :speed 10 :direction 0}
+                       (b/move-thing {:position [0 0] :speed 10 :direction 0})))
  
           (it "Moves 30 units across the x axis and 30 units up the y axis"
-              (should= {:position [30.0 30.0] :speed 10}
-                       (-> {:position [0 0] :speed 10}
-                           (b/move-thing 0)
-                           (b/move-thing 90)
-                           (b/move-thing 0)
-                           (b/move-thing 90)
-                           (b/move-thing 0)
-                           (b/move-thing 90)))))
+              (should= {:position [0.0 10.0] :speed 10 :direction 90}
+                       (-> {:position [0 0] :speed 10 :direction 90}
+                           (b/move-thing)))))
 
 (def boss-phases [{         :to 20 :weapon {:damage 1  :speed 10}}
                   {:from 20 :to 40 :weapon {:damage 10 :speed 2}}
                   {:from 40        :weapon {:damage 5  :speed 6}}])
 
-(describe "Boss phase"
+(describe "Boss phase" 
           (it "Life total within phase"
               (should (b/life-within-phase? 10 (first boss-phases)))
               (should-not (b/life-within-phase? 10 (second boss-phases)))

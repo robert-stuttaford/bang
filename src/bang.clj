@@ -17,15 +17,23 @@
 
 ;;; Movement of entities - characters and bullets
 
+(defn cos [θ]
+  (let [c (Math/cos θ)]
+    (if (#{1.0 -1.0} c)
+      c
+      (if (#{1.0 -1.0} (Math/sin θ))
+        0.0
+        c))))
+
 (defn move
   [[x y] speed direction]
   (let [direction-radians (Math/toRadians direction)]
-    [(+ x (* speed (Math/cos direction-radians)))
+    [(+ x (* speed (cos direction-radians)))
      (+ y (* speed (Math/sin direction-radians)))]))
 
 (defn move-thing
-  [thing direction]
-  (update-in thing [:position] move (:speed thing) direction))
+  [thing]
+  (update-in thing [:position] move (:speed thing) (:direction thing)))
 
 ;; Boss phase, determined by current life total
 
@@ -83,6 +91,15 @@
   (when (zero? (:life character))
     (assoc character :status :dead)))
 
+(defn things-of-type
+  [things type]
+  (filter #(= type (:type %)) things))
+
+(defn game-ended?
+  [things]
+  (or (empty? (things-of-type things :player))
+      (empty? (things-of-type things :enemy))))
+
 ;; Game loop
 
 (defn process-game-step
@@ -95,40 +112,39 @@
                    world)]
        world)))
 
-(declare running)
+(defn check-collisions
+  [things]
+  (let [things-of-type (partial things-of-type things)]
+    (for [bullet (things-of-type :bullet)]
+      (let [targets (case (:owner-type bullet)
+                      :player (concat (things-of-type :enemy)
+                                      (things-of-type :boss))
+                      :enemy (things-of-type :player))]
+        (map (partial things-hit? bullet) targets)))))
 
 (defn step-game
   [world rules]
   (Thread/sleep 1000)
-  (when (and running @running)
+  (println (:step world))
+  (when-not (game-ended? (:things world))
     (let [new-world (process-game-step world rules)]
-      (println world)
       (step-game new-world rules))))
 
 (defn start-game!
   [world rules]
-  (binding [running (atom true)]
-    (reset! running true)
-    (step-game world rules)))
-
-(defn stop-game!
-  []
-  (when (= clojure.lang.Atom running)
-    (reset! running false)))
+  (step-game world rules))
 
 (comment
-  (stop-game!)
+  (.start (Thread. stop-game!))
 
   ;; Simple game where player kills enemy
-  (start-game! {:step 0
-                :things [{:type :player :life 50 :weapon {:damage 4 :speed 5} :position [0 0]}
-                         {:type :enemy :life 10 :position [50 0]}]}
+  (start-game! (let [player {:type :player :life 50 :weapon {:damage 4 :speed 5} :position [0 0]}]
+                 {:step 0
+                  :things [player
+                           {:type :enemy :life 10 :position [50 0]}
+                           (character-fires-bullet-in-direction player 0)]})
                (fn [world]
-                 (let [player (first (filter #(= :player (:type %))
-                                             (:things world)))
-                       bullets (filter #(= :bullet (:type %))
-                                       (:things world))]
-                   (-> world
-                       (when (empty? bullets)
-                         (update-in world [:things] conj (character-fires-bullet-in-direction player 0)))))))
+                 (-> world
+                     (update-in [:things] (partial map move-thing))
+                     (update-in [:things] (partial map check-collisions)))))
   )
