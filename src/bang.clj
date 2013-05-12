@@ -95,33 +95,40 @@
                    world)]
        world)))
 
-(def step-time 1000)
-(def running (atom nil))
-
-;; Game timer
+(declare running)
 
 (defn step-game
   [world rules]
-  (Thread/sleep step-time)
+  (Thread/sleep 1000)
   (when @running
     (let [new-world (process-game-step world rules)]
       (println world)
       (step-game new-world rules))))
 
-;; Simple game where player kills enemy
+(defn start-game!
+  [world rules]
+  (binding [running (atom true)]
+    (reset! running true)
+    (step-game world rules)))
 
-(defn start-game
+(defn stop-game!
   []
-  (reset! running true)
-  (step-game {:step 0
-              :things [{:type :player :life 50 :weapon {:damage 4 :speed 5} :position [0 0]}
-                       {:type :enemy :life 10 :position [50 0]}]}
-             (fn [world]
-               (let [player (first (filter #(= :player (:type %))
-                                           (:things world)))
-                     bullets (filter #(= :bullet (:type %))
-                                     (:things world))]
-                 (-> world
-                     (when (empty? bullets)
-                       (update-in world [:things] conj (character-fires-bullet-in-direction player 0)))))))
+  (when (= clojure.lang.Atom running)
+    (reset! running false)))
+
+(comment
+  (stop-game!)
+
+  ;; Simple game where player kills enemy
+  (start-game! {:step 0
+                :things [{:type :player :life 50 :weapon {:damage 4 :speed 5} :position [0 0]}
+                         {:type :enemy :life 10 :position [50 0]}]}
+               (fn [world]
+                 (let [player (first (filter #(= :player (:type %))
+                                             (:things world)))
+                       bullets (filter #(= :bullet (:type %))
+                                       (:things world))]
+                   (-> world
+                       (when (empty? bullets)
+                         (update-in world [:things] conj (character-fires-bullet-in-direction player 0)))))))
   )
