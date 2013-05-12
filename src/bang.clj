@@ -1,6 +1,20 @@
 (ns bang
   (:import [java.lang Math Integer]))
 
+;;; Circular hit detection
+
+(defn things-hit?
+  [this that]
+  (let [this-pos (:position this)
+        that-pos (:position that)
+        diff-x (- (first this-pos) (first that-pos))
+        diff-y (- (second this-pos) (second that-pos))
+        radii (+ (:size this) (:size that))]
+    ;; thanks, Pythagoras!
+    (< (+ (* diff-x diff-x)
+          (* diff-y diff-y))
+       (* radii radii))))
+
 ;;; Movement of entities - characters and bullets
 
 (defn move
@@ -38,7 +52,8 @@
 (defn character-fires-bullet-in-direction
   [character direction]
   (let [weapon (current-weapon character)]
-    {:type (:type character)
+    {:type :bullet
+     :owner-type (:type character)
      :damage (:damage weapon)
      :speed (:speed weapon)
      :position (:position character)
@@ -59,7 +74,7 @@
 
 (defn bullet-hit-character
   [bullet character]
-  (if (not= (:type bullet) (:type character))
+  (if (not= (:owner-type bullet) (:type character))
     (damage-character character (:damage bullet))
     character))
 
@@ -67,3 +82,46 @@
   [character]
   (when (zero? (:life character))
     (assoc character :status :dead)))
+
+;; Game loop
+
+(defn process-game-step
+  ([world]
+     (process-game-step world nil))
+  ([world rules]
+     (let [world (update-in world [:step] inc)
+           world (if (fn? rules)
+                   (rules world)
+                   world)]
+       world)))
+
+(def step-time 1000)
+(def running (atom nil))
+
+;; Game timer
+
+(defn step-game
+  [world rules]
+  (Thread/sleep step-time)
+  (when @running
+    (let [new-world (process-game-step world rules)]
+      (println world)
+      (step-game new-world rules))))
+
+;; Simple game where player kills enemy
+
+(defn start-game
+  []
+  (reset! running true)
+  (step-game {:step 0
+              :things [{:type :player :life 50 :weapon {:damage 4 :speed 5} :position [0 0]}
+                       {:type :enemy :life 10 :position [50 0]}]}
+             (fn [world]
+               (let [player (first (filter #(= :player (:type %))
+                                           (:things world)))
+                     bullets (filter #(= :bullet (:type %))
+                                     (:things world))]
+                 (-> world
+                     (when (empty? bullets)
+                       (update-in world [:things] conj (character-fires-bullet-in-direction player 0)))))))
+  )

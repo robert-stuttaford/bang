@@ -2,6 +2,14 @@
   (:require [speclj.core :refer :all]
             [bang :as b]))
 
+(describe "Circular hit detection"
+          (it "Close circles should hit"
+              (should (b/things-hit? {:position [0 0] :size 5}
+                                     {:position [3 3] :size 1})))
+          (it "Far circles should not hit"
+              (should-not (b/things-hit? {:position [0 0] :size 5}
+                                     {:position [10 10] :size 1}))))
+
 (describe "Moving things"
           (it "Moves 10 units across the x axis"
               (should= {:position [10.0 0.0] :speed 10}
@@ -41,14 +49,11 @@
               (should= (last boss-phases) (b/boss-phase {:life 50 :phases boss-phases})))) 
   
 (describe "Character's current weapon"
-          (it "Players and enemies have one weapon"
-              (let [player {:weapon {:damage 3 :speed 5}}
-                    enemy {:weapon {:damage 1 :speed 2}}]
-                (should= {:damage 3 :speed 5}
-                         (b/current-weapon player))
-                (should= {:damage 1 :speed 2}
-                         (b/current-weapon enemy))))
-          (it "Boss weapon depends on his phase"
+          (it "Non-boss characters have one weapon"
+              (let [weapon {:damage 3 :speed 5}]
+                (should= weapon
+                         (b/current-weapon {:weapon weapon}))))
+          (it "Boss weapon depends on boss' phase"
               (should= (:weapon (first boss-phases))
                        (b/current-weapon {:type :boss :life 10 :phases boss-phases}))
               (should= (:weapon (second boss-phases))
@@ -58,7 +63,8 @@
 
 (describe "Firing weapons"
           (it "Player fires a weapon"
-              (should= {:type :player
+              (should= {:type :bullet
+                        :owner-type :player
                         :damage 3
                         :speed 5
                         :position [0 0]
@@ -68,7 +74,8 @@
                                      :position [0 0]}]
                          (b/character-fires-bullet-in-direction player 0))))
           (it "Enemy fires a weapon"
-              (should= {:type :enemy
+              (should= {:type :bullet
+                        :owner-type :enemy
                         :damage 1
                         :speed 2
                         :position [0 0]
@@ -78,7 +85,8 @@
                                     :position [0 0]}]
                          (b/character-fires-bullet-in-direction enemy 90))))
           (it "Boss fires weapon"
-              (should= {:type :boss
+              (should= {:type :bullet
+                        :owner-type :boss
                         :damage 10
                         :speed 2
                         :position [0 0]
@@ -88,7 +96,8 @@
                                    :phases boss-phases
                                    :position [0 0]}]
                          (b/character-fires-bullet-in-direction boss 90)))
-              (should= {:type :boss
+              (should= {:type :bullet
+                        :owner-type :boss
                         :damage 1
                         :speed 10
                         :position [0 0]
@@ -107,8 +116,8 @@
               (should= 0
                        (b/deal-damage 2 1)))
           (it "Damaging character reduces character's life."
-              (should= {:life 2}
-                       (b/damage-character {:life 5} 3)))
+              (should= 2
+                       (:life (b/damage-character {:life 5} 3))))
           (it "Don't allow friendly fire"
               (let [enemy1 {:type :enemy
                             :weapon {:damage 3 :speed 5}
@@ -122,8 +131,11 @@
                             :position [0 0]}
                     bullet (b/character-fires-bullet-in-direction rival1 0)
                     rival2 {:type :enemy
-                            :life 10}]
-                (should-not= rival2 (b/bullet-hit-character bullet rival2)))))
+                            :life 10}
+                    damaged-rival2 (b/bullet-hit-character bullet rival2)]
+                (should= 7
+                         (:life damaged-rival2))
+                (should-not= rival2 damaged-rival2))))
 
 (describe "Character status"
           (it "Character with positive life isn't dead"
@@ -131,6 +143,11 @@
                            (:status (b/update-character-status {:life 1}))))
           (it "Character with zero life is dead"
               (should= :dead
-                           (:status (b/update-character-status {:life 0})))))
+                       (:status (b/update-character-status {:life 0})))))
 
-(run-specs)
+(describe "Process game step"
+          (it "Stepping the game increases the step counter"
+              (should= 1
+                       (:step (b/process-game-step {:step 0})))))
+
+(run-specs) 
