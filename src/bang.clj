@@ -100,7 +100,7 @@
 (defn step-game
   [world rules]
   (Thread/sleep 1000)
-  (when @running
+  (when (and running @running)
     (let [new-world (process-game-step world rules)]
       (println world)
       (step-game new-world rules))))
